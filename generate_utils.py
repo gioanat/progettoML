@@ -55,8 +55,7 @@ except ImportError:
     from ekphrasis.classes.preprocessor import TextPreProcessor
     from ekphrasis.classes.tokenizer import SocialTokenizer
     from ekphrasis.dicts.emoticons import emoticons
-
-tokenizer = None    
+   
     
 text_processor = TextPreProcessor(
     # terms that will be normalized
@@ -163,7 +162,7 @@ def detokenize(sent):
     return new_sent
 
 
-def list_token():
+def list_token(tokenizer):
     ll = list()
     with open('vocab.txt','r') as f:
       for s in f.readlines():
@@ -504,8 +503,8 @@ def init():
     sep_id = tokenizer.convert_tokens_to_ids([SEP])[0]
     cls_id = tokenizer.convert_tokens_to_ids([CLS])[0]
 
-    list_token_obtain = list_token()
-    list_subtoken_obtain = list_subtoken()
+    list_token_obtain = list_token(tokenizer)
+    list_subtoken_obtain = list_subtoken(tokenizer)
 
     src = 'it'  # source language
     trg = 'en'  # target language
