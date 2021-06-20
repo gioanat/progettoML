@@ -338,6 +338,77 @@ class GenerateHints(object):
                 hints.append(self.tokenizer.ids_to_tokens[self.idx_list[-1]])
 
         return hints
+    def traslated_funct(text):
+        text=text.split()
+        emoji_it_to_en=["😉","🌸","😭","😊","💕","😘","😍","😂","♥","👍","😁","🙈","😏","🙏",
+              "😱","💖","🔝","😜","💘","😄","💞","😃","👏","😔","💋","😁","♡","😔"]
+
+        #Divido emoji dalle parole
+        flag=0
+        text2=[]
+        w1=""
+        w2=""
+        w3=""
+        for word in text:
+          for emoji in emoji_it_to_en:
+            if emoji in word and emoji!=word:
+              flag=1
+              w1,w3=word.split(emoji)
+              w2=emoji
+              if w1!="":
+                text2.append(w1)
+                w1=""
+              text2.append(w2)
+              w2=""
+              if w3!="":
+                text2.append(w3)
+                w3=""
+          if flag==0:
+            text2.append(word)
+          flag=0
+
+        #Ottengo sottofrasi dalla frase di partenza
+        broken_sent=[]
+        removed=[]
+        sent_piece=""
+        for i in range(len(text2)):
+          if text2[i] not in emoji_it_to_en:
+            sent_piece=sent_piece+text2[i]+" " 
+          else:
+            removed.append(text2[i])
+            sent_piece=sent_piece.strip()
+            broken_sent.append(sent_piece)
+            sent_piece=""
+          if i==len(text2)-1 and (text2[i] not in emoji_it_to_en):
+            sent_piece=sent_piece.strip()
+            broken_sent.append(sent_piece)
+            sent_piece=""
+
+        #Traduco sottofrasi
+        translated=[]
+        for el in broken_sent:
+          words1=""
+          batch = self.tokenizerTrasl.prepare_seq2seq_batch(src_texts=[el],return_tensors='pt') 
+          gen = self.modelTrasl.generate(**batch) 
+          words: List[str] = self.tokenizerTrasl.batch_decode(gen, skip_special_tokens=True)
+          for el in words:
+            words1=words1+el
+          translated.append(words1)
+
+        #Reinserisco gli emoji tolti in precedenza
+        new_text_piece=[]
+        for i in range(len(removed)):
+          new_text_piece.append(translated[i])
+          new_text_piece.append(removed[i])
+        if len(translated)>len(removed):
+          new_text_piece.append(translated[-1])
+
+        #Riunisco tutto in un'unica frase
+        new_text=""
+        for el in new_text_piece:
+          new_text=new_text+" "+el
+        new_text=new_text.strip()
+        return new_text
 
         
 def preprocess_twitter(s):
@@ -438,76 +509,3 @@ def parse_hashtags(phrase: str):
     temp=temp.replace(" !","!")
     temp=temp.replace(" ?","?")
     return temp.strip()
-
-
-def traslated_funct(text):
-    text=text.split()
-    emoji_it_to_en=["😉","🌸","😭","😊","💕","😘","😍","😂","♥","👍","😁","🙈","😏","🙏",
-          "😱","💖","🔝","😜","💘","😄","💞","😃","👏","😔","💋","😁","♡","😔"]
-
-    #Divido emoji dalle parole
-    flag=0
-    text2=[]
-    w1=""
-    w2=""
-    w3=""
-    for word in text:
-      for emoji in emoji_it_to_en:
-        if emoji in word and emoji!=word:
-          flag=1
-          w1,w3=word.split(emoji)
-          w2=emoji
-          if w1!="":
-            text2.append(w1)
-            w1=""
-          text2.append(w2)
-          w2=""
-          if w3!="":
-            text2.append(w3)
-            w3=""
-      if flag==0:
-        text2.append(word)
-      flag=0
-
-    #Ottengo sottofrasi dalla frase di partenza
-    broken_sent=[]
-    removed=[]
-    sent_piece=""
-    for i in range(len(text2)):
-      if text2[i] not in emoji_it_to_en:
-        sent_piece=sent_piece+text2[i]+" " 
-      else:
-        removed.append(text2[i])
-        sent_piece=sent_piece.strip()
-        broken_sent.append(sent_piece)
-        sent_piece=""
-      if i==len(text2)-1 and (text2[i] not in emoji_it_to_en):
-        sent_piece=sent_piece.strip()
-        broken_sent.append(sent_piece)
-        sent_piece=""
-
-    #Traduco sottofrasi
-    translated=[]
-    for el in broken_sent:
-      words1=""
-      batch = self.tokenizerTrasl.prepare_seq2seq_batch(src_texts=[el],return_tensors='pt') 
-      gen = self.modelTrasl.generate(**batch) 
-      words: List[str] = self.tokenizerTrasl.batch_decode(gen, skip_special_tokens=True)
-      for el in words:
-        words1=words1+el
-      translated.append(words1)
-
-    #Reinserisco gli emoji tolti in precedenza
-    new_text_piece=[]
-    for i in range(len(removed)):
-      new_text_piece.append(translated[i])
-      new_text_piece.append(removed[i])
-    if len(translated)>len(removed):
-      new_text_piece.append(translated[-1])
-
-    #Riunisco tutto in un'unica frase
-    new_text=""
-    for el in new_text_piece:
-      new_text=new_text+" "+el
-    new_text=new_text.strip()
-    return new_text
