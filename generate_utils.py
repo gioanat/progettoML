@@ -502,8 +502,6 @@ def init():
     sep_id = tokenizer.convert_tokens_to_ids([SEP])[0]
     cls_id = tokenizer.convert_tokens_to_ids([CLS])[0]
 
-    !wget https://raw.githubusercontent.com/marcopoli/AlBERTo-it/master/vocab.txt
-
     list_token_obtain = list_token()
     list_subtoken_obtain = list_subtoken()
 
