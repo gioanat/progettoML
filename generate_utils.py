@@ -104,9 +104,6 @@ class GenerateHints(object):
         self.sep_id = self.tokenizer.convert_tokens_to_ids([self.SEP])[0]
         self.cls_id = self.tokenizer.convert_tokens_to_ids([self.CLS])[0]
 
-        self.list_token_obtain = self.list_token()
-        self.list_subtoken_obtain = self.list_subtoken()
-
         self.src = 'it'  # source language
         self.trg = 'en'  # target language
         self.modelTrasl = f'Helsinki-NLP/opus-mt-{self.src}-{self.trg}'
@@ -157,9 +154,11 @@ class GenerateHints(object):
             rmToken = batch[0][(gen_idx-4):gen_idx]
             rmToken.append(self.tokenizer.convert_tokens_to_ids('[UNK]'))
             if lastVocal and not isFirst:
-              [rmToken.append(item) for item in self.list_token_obtain]
+                list_token_obtain = self.list_token()
+                [rmToken.append(item) for item in list_token_obtain]
             if isFirst:
-              [rmToken.append(item) for item in self.list_subtoken_obtain]
+                list_subtoken_obtain = self.list_subtoken()
+                [rmToken.append(item) for item in self.list_subtoken_obtain]
             if kth_idx == []:
               top_k = len(idx_list)+10
               kth_vals, kth_idx = logits.topk(top_k, dim=-1)
