@@ -1,4 +1,4 @@
-# App Twitter
+# Twitter App
 
 To use our Twitter App, please proceed in the following way:
 
