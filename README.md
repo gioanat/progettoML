@@ -1,5 +1,7 @@
 # Twitter App
 
+![albertoimage](albertoimage.png)
+
 ## EN
 
 To use our Twitter App, please proceed in the following way:
