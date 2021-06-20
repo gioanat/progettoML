@@ -90,7 +90,7 @@ class GenerateHints(object):
     def __init__(self):
         self.noWiki = True
         self.model_version =  "m-polignano-uniba/bert_uncased_L-12_H-768_A-12_italian_alb3rt0"
-        self.model = AutoModelForMaskedLM.from_pretrained(model_version)
+        self.model = AutoModelForMaskedLM.from_pretrained(self.model_version)
         self.model.eval()
         self.cuda = torch.cuda.is_available()
         if self.cuda:
