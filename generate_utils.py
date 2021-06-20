@@ -56,6 +56,8 @@ except ImportError:
     from ekphrasis.classes.tokenizer import SocialTokenizer
     from ekphrasis.dicts.emoticons import emoticons
 
+tokenizer = None    
+    
 text_processor = TextPreProcessor(
     # terms that will be normalized
     normalize=['url', 'email', 'user', 'percent', 'money', 'phone', 'time', 'date', 'number'],
