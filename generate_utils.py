@@ -104,8 +104,8 @@ class GenerateHints(object):
         self.sep_id = self.tokenizer.convert_tokens_to_ids([self.SEP])[0]
         self.cls_id = self.tokenizer.convert_tokens_to_ids([self.CLS])[0]
 
-        self.list_token_obtain = self.list_token(self.tokenizer)
-        self.list_subtoken_obtain = self.list_subtoken(self.tokenizer)
+        self.list_token_obtain = self.list_token()
+        self.list_subtoken_obtain = self.list_subtoken()
 
         self.src = 'it'  # source language
         self.trg = 'en'  # target language
