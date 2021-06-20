@@ -176,7 +176,7 @@ class GenerateHints(object):
         return idx.tolist() if return_list else idx
 
 
-    def get_init_text(seed_text, max_len, batch_size = 1, rand_init=False):
+    def get_init_text(self,seed_text, max_len, batch_size = 1, rand_init=False):
         """ Get initial sentence by padding seed_text with either masks or random words to max_len """
         batch = [seed_text + [self.MASK] * max_len + [self.SEP] for _ in range(batch_size)]  # crea batch_size sentences of max_len that start with [CLS] and end with [SEP]
         #if rand_init:
@@ -228,7 +228,7 @@ class GenerateHints(object):
         return self.untokenize_batch(block)
 
 
-    def generate(n_samples, seed_text="[CLS]", batch_size=10, max_len=25, 
+    def generate(self,n_samples, seed_text="[CLS]", batch_size=10, max_len=25, 
                  generation_mode="parallel-sequential", leed_out_len= 5,
                  sample=True, top_k=100, temperature=1.0, burnin=200, max_iter=500,
                  cuda=False, print_every=1, stop_chars=[]):
@@ -258,7 +258,7 @@ class GenerateHints(object):
             sentences += batch
         return sentences
 
-    def generate_phrase(seed, num_phrase = 5):
+    def generate_phrase(self,seed, num_phrase = 5):
         ff = preprocess_twitter(seed)
         frase = ff.split()
         frase = [self.CLS] + frase
@@ -275,13 +275,13 @@ class GenerateHints(object):
         bert_sents = self.generate(n_samples, seed_text=frase, batch_size=batch_size, max_len=max_len,
                           generation_mode=generation_mode, leed_out_len= leed_out_len,
                           sample=sample, top_k=top_k, temperature=temperature, burnin=burnin, max_iter=max_iter,
-                          cuda=cuda, stop_chars=["!","?","."])
+                          cuda=self.cuda, stop_chars=["!","?","."])
         phrase = list()
         a = AlBERTo_Preprocessing(do_lower_case=True)
         b = a.preprocess(seed)
         for sent in bert_sents:
           print(sent)
-          sent = detokenize(sent)
+          sent = self.detokenize(sent)
           st = post_process_alberto(sent)
           st = st.replace(b,seed)
           phrase.append(st)
@@ -302,7 +302,7 @@ class GenerateHints(object):
 
 
         seed_len = len(frase)
-        batch = get_init_text(frase, max_len) # batch_size sentences of max_len length with all mask, starting with [CLS] and separating by [SEP]
+        batch = self.get_init_text(frase, max_len) # batch_size sentences of max_len length with all mask, starting with [CLS] and separating by [SEP]
 
         inp = [sent[:seed_len+leed_out_len]+[self.sep_id] for sent in batch]
         inp = torch.tensor(batch).cuda() if self.cuda else torch.tensor(batch)
