@@ -7,10 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1Pdv7L8MFE6b0AWypV_jL8x85ZupO5_df
 """
 
-!pip3 install sentencepiece
-!pip3 install transformers
-!pip3 install pytorch_pretrained_bert
-
 import numpy as np
 import torch
 from pytorch_pretrained_bert import BertTokenizer, BertModel, BertForMaskedLM
@@ -44,7 +40,6 @@ import time
 from typing import List
 import torch
 
-!pip install ekphrasis
 
 try:
     from ekphrasis.classes.preprocessor import TextPreProcessor
