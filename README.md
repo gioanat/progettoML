@@ -2,7 +2,7 @@
 
 Per utilizzare l'app twitter:
 
-1. Aprire il link app_twitter.surge.sh 
+1. Aprire il link [app_twitter.surge.sh](app_twitter.surge.sh) 
 
 contemporaneamnte
 
