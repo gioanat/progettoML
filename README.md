@@ -1,6 +1,6 @@
 # Twitter App
 
-![albertoimage](albertoimage.png)
+![albertoimage](albertoimage.jpeg)
 
 ## EN
 
