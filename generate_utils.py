@@ -85,7 +85,261 @@ class AlBERTo_Preprocessing(object):
         text = re.sub(r'^\s', '', text)
         text = re.sub(r'\s$', '', text)
         return text
+    
+class GenerateHints(object):
+    def __init__(self):
+        noWiki = True
+        model_version =  "m-polignano-uniba/bert_uncased_L-12_H-768_A-12_italian_alb3rt0"
+        model = AutoModelForMaskedLM.from_pretrained(model_version)
+        model.eval()
+        cuda = torch.cuda.is_available()
+        if cuda:
+            model = model.cuda(0)
+        # Load pre-trained model tokenizer (vocabulary)
+        tokenizer = AutoTokenizer.from_pretrained(model_version)
+        CLS = '[CLS]'
+        SEP = '[SEP]'
+        MASK = '[MASK]'
+        mask_id = tokenizer.convert_tokens_to_ids([MASK])[0]
+        sep_id = tokenizer.convert_tokens_to_ids([SEP])[0]
+        cls_id = tokenizer.convert_tokens_to_ids([CLS])[0]
 
+        list_token_obtain = list_token(tokenizer)
+        list_subtoken_obtain = list_subtoken(tokenizer)
+
+        src = 'it'  # source language
+        trg = 'en'  # target language
+        modelTrasl = f'Helsinki-NLP/opus-mt-{src}-{trg}'
+
+        tokenizerTrasl = AutoTokenizer.from_pretrained(modelTrasl)
+        modelTrasl = AutoModelForSeq2SeqLM.from_pretrained(modelTrasl)
+    def tokenize_batch(batch):
+        return [self.tokenizer.convert_tokens_to_ids(sent) for sent in batch]
+
+    def untokenize_batch(batch):
+        return [self.tokenizer.convert_ids_to_tokens(sent) for sent in batch]
+    
+    def list_token():
+        ll = list()
+        with open('vocab.txt','r') as f:
+          for s in f.readlines():
+              t=s.replace("\n","")
+              if t.startswith("##"):
+                if t[2] in ["a","e","i","o","u"]:
+                      ll.append(self.tokenizer.convert_tokens_to_ids(t))
+        return ll
+
+    def list_subtoken():
+        ll = list()
+        with open('vocab.txt','r') as f:
+          for s in f.readlines():
+              t=s.replace("\n","")
+              if t.startswith("##"):
+                  ll.append(self.tokenizer.convert_tokens_to_ids(t))
+        return ll
+    def generate_step(out, gen_idx, batch, temperature=None, top_k=0, sample=False, return_list=True, lastVocal = False, isFirst=False):
+        """ Generate a word from from out[gen_idx]
+
+        args:
+            - out (torch.Tensor): tensor of logits of size batch_size x seq_len x vocab_size
+            - gen_idx (int): location for which to generate for
+            - top_k (int): if >0, only sample from the top k most probable words
+            - sample (Bool): if True, sample from full distribution. Overridden by top_k 
+        """
+        if self.noWiki:
+          logits = out.logits[:,gen_idx]
+        else:
+          logits = out[:,gen_idx]
+        if temperature is not None:
+            logits = logits / temperature
+        if top_k > 0:
+            kth_vals, kth_idx = logits.topk(top_k, dim=-1)
+            rmToken = batch[0][(gen_idx-4):gen_idx]
+            rmToken.append(self.tokenizer.convert_tokens_to_ids('[UNK]'))
+            if lastVocal and not isFirst:
+              [rmToken.append(item) for item in self.list_token_obtain]
+            if isFirst:
+              [rmToken.append(item) for item in self.list_subtoken_obtain]
+            if kth_idx == []:
+              top_k = len(idx_list)+10
+              kth_vals, kth_idx = logits.topk(top_k, dim=-1)
+              kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],idx_list)
+            kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],rmToken)
+            kth_vals = torch.tensor([kth_vals]).cuda() if cuda else torch.tensor([kth_vals])
+            kth_idx = torch.tensor([kth_idx]).cuda() if cuda else torch.tensor([kth_idx])
+            dist = torch.distributions.categorical.Categorical(logits=kth_vals)
+            idx = kth_idx.gather(dim=1, index=dist.sample().unsqueeze(-1)).squeeze(-1) 
+        elif sample:
+            dist = torch.distributions.categorical.Categorical(logits=logits)
+            idx = dist.sample().squeeze(-1)
+        else:
+            idx = torch.argmax(logits, dim=-1)
+        return idx.tolist() if return_list else idx
+
+
+    def get_init_text(seed_text, max_len, batch_size = 1, rand_init=False):
+        """ Get initial sentence by padding seed_text with either masks or random words to max_len """
+        batch = [seed_text + [self.MASK] * max_len + [self.SEP] for _ in range(batch_size)]  # crea batch_size sentences of max_len that start with [CLS] and end with [SEP]
+        #if rand_init:
+        #    for ii in range(max_len):
+        #        init_idx[seed_len+ii] = np.random.randint(0, len(tokenizer.vocab))
+
+        return tokenize_batch(batch)
+            
+    def sequential_generation(seed_text, batch_size=10, max_len=15, leed_out_len=15, 
+                              top_k=0, temperature=None, sample=True, cuda=False, stop_chars=[],max_iter=1000):
+        """ Generate one word at a time, in L->R order """
+        seed_len = len(seed_text)
+        block = []
+        for curr_batch_index in range(batch_size):
+          print("Batch {}".format(curr_batch_index))
+          batch = get_init_text(seed_text, max_len) # batch_size sentences of max_len length with all mask, starting with [CLS] and separating by [SEP]
+
+          for ii in range(max_len):
+              if self.tokenizer.convert_ids_to_tokens(batch[0][:seed_len+ii])[-1][-1] in ['a','e','i','o','u']:
+                lastVocal = True
+              else:
+                lastVocal = False
+              if ii == 0:
+                isFirst = True
+              else:
+                isFirst = False
+              inp = [sent[:seed_len+ii+leed_out_len]+[sep_id] for sent in batch]
+              inp = torch.tensor(batch).cuda() if cuda else torch.tensor(batch)
+              out = model(inp) # ricava i valori logits
+              idxs = generate_step(out, gen_idx=seed_len+ii, batch = batch, top_k=top_k, temperature=temperature, sample=sample,lastVocal=lastVocal, isFirst=isFirst)
+              batch[0][seed_len+ii] = idxs[0]
+              if self.noWiki:
+                key = self.tokenizer.convert_ids_to_tokens(idxs[0])
+              else:
+                key = self.tokenizer.ids_to_tokens[idxs[0]]
+              if key in stop_chars:
+                batch[0] = batch[0][: seed_len+ii+1]
+                #block.append(batch[0])
+                break   
+          block.append(batch[0])            
+          #for _ in range(max_iter):
+          #    kk = np.random.randint(0, len(block[-1])-seed_len-1) # seleziona un indice casuale tra 0 e max_len e maschera il relativo token in ogni sentences
+          #    block[-1][seed_len+kk] = mask_id
+          #    inp = torch.tensor([block[-1]]).cuda() if cuda else torch.tensor([block[-1]])
+          #    out = model(inp)
+          #    idxs = generate_step(out, gen_idx=seed_len+kk, top_k=top_k, temperature=temperature, sample=False)
+          #    block[-1][seed_len+kk] = idxs[0]
+
+        return untokenize_batch(block)
+
+
+    def generate(n_samples, seed_text="[CLS]", batch_size=10, max_len=25, 
+                 generation_mode="parallel-sequential", leed_out_len= 5,
+                 sample=True, top_k=100, temperature=1.0, burnin=200, max_iter=500,
+                 cuda=False, print_every=1, stop_chars=[]):
+        # main generation function to call
+        sentences = []
+        n_batches = math.ceil(n_samples / batch_size) # approssima il rapporto a un numero intero e ripete il processo di generazione di batch_size sentences of length len_max n_batches times.
+        start_time = time.time()
+        for batch_n in range(n_batches):
+            if generation_mode == "parallel-sequential":
+                batch = parallel_sequential_generation(seed_text, batch_size=batch_size, max_len=max_len, top_k=top_k,
+                                                       temperature=temperature, burnin=burnin, max_iter=max_iter, 
+                                                       cuda=cuda, verbose=False)
+            elif generation_mode == "sequential":
+                batch = sequential_generation(seed_text, batch_size=batch_size, max_len=max_len, top_k=top_k, 
+                                              temperature=temperature, leed_out_len=leed_out_len, sample=sample,
+                                              cuda=cuda, stop_chars=stop_chars)
+            elif generation_mode == "parallel":
+                batch = parallel_generation(seed_text, batch_size=batch_size,
+                                            max_len=max_len, top_k=top_k, temperature=temperature, 
+                                            sample=sample, max_iter=max_iter, 
+                                            cuda=cuda, verbose=True)
+
+            if (batch_n + 1) % print_every == 0:
+                print("Finished batch %d in %.3fs" % (batch_n + 1, time.time() - start_time))
+                start_time = time.time()
+
+            sentences += batch
+        return sentences
+
+    def generate_phrase(seed, num_phrase = 5):
+        ff = preprocess_twitter(seed)
+        frase = ff.split()
+        frase = [self.CLS] + frase
+        n_samples = num_phrase
+        batch_size = num_phrase
+        max_len = 40
+        top_k = 50
+        temperature = 1.0
+        generation_mode = "sequential"
+        leed_out_len = 5 # max_len
+        burnin = 200
+        sample = True
+        max_iter = 600
+        bert_sents = generate(n_samples, seed_text=frase, batch_size=batch_size, max_len=max_len,
+                          generation_mode=generation_mode, leed_out_len= leed_out_len,
+                          sample=sample, top_k=top_k, temperature=temperature, burnin=burnin, max_iter=max_iter,
+                          cuda=cuda, stop_chars=["!","?","."])
+        phrase = list()
+        a = AlBERTo_Preprocessing(do_lower_case=True)
+        b = a.preprocess(seed)
+        for sent in bert_sents:
+          print(sent)
+          sent = detokenize(sent)
+          st = post_process_alberto(sent)
+          st = st.replace(b,seed)
+          phrase.append(st)
+
+        return phrase
+
+    def generate_hints(seed, num_hints = 5):
+        ff = preprocess_twitter(seed)
+        frase = ff.split()
+        frase = [self.CLS] + frase
+        n_samples = num_hints
+        batch_size = num_hints
+        max_len = 10
+        top_k = 100
+        temperature = 1.0
+        generation_mode = "sequential"
+        leed_out_len = 5 # max_len
+
+
+        seed_len = len(frase)
+        batch = get_init_text(frase, max_len) # batch_size sentences of max_len length with all mask, starting with [CLS] and separating by [SEP]
+
+        inp = [sent[:seed_len+leed_out_len]+[sep_id] for sent in batch]
+        inp = torch.tensor(batch).cuda() if cuda else torch.tensor(batch)
+        out = model(inp) # ricava i valori logits
+        gen_idx=seed_len
+
+        if self.noWiki:
+          logits = out.logits[:,gen_idx]
+        else:
+          logits = out[:,gen_idx]
+        if temperature is not None:
+            logits = logits / temperature
+
+        kth_vals, kth_idx = logits.topk(top_k, dim=-1)
+        idx_list = batch[0][:gen_idx]
+        [idx_list.append(item) for item in self.list_subtoken_obtain]
+        hints =list()
+        for ii in range(num_hints):
+            kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],idx_list)
+            if kth_idx == []:
+              top_k = len(idx_list)+num_hints
+              kth_vals, kth_idx = logits.topk(top_k, dim=-1)
+              kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],idx_list)
+            kth_vals = torch.tensor([kth_vals]).cuda() if cuda else torch.tensor([kth_vals])
+            kth_idx = torch.tensor([kth_idx]).cuda() if cuda else torch.tensor([kth_idx])
+            dist = torch.distributions.categorical.Categorical(logits=kth_vals)
+            idx = kth_idx.gather(dim=1, index=dist.sample().unsqueeze(-1)).squeeze(-1) 
+            idx_list.append(idx.tolist()[0])
+            if noWiki:
+                hints.append(self.tokenizer.convert_ids_to_tokens(idx.tolist()[0]))
+            else:
+                hints.append(self.tokenizer.ids_to_tokens[idx_list[-1]])
+
+        return hints
+
+        
 def preprocess_twitter(s):
     a = AlBERTo_Preprocessing(do_lower_case=True)
     b = a.preprocess(s)
@@ -129,7 +383,7 @@ def post_process_alberto(sent):
           new_sent.append(sent[i])
       else:
         new_sent.append(sent[i])
-    
+
     st = " ".join(new_sent)
     st = st.replace("[CLS]","")
     st = st.replace("[SEP]","")
@@ -144,12 +398,6 @@ def diff(l1=[],l2=[],l3=[]):
             kht_value.append(l2[ss])
     return kht_idx,kht_value
 
-def tokenize_batch(batch):
-    return [tokenizer.convert_tokens_to_ids(sent) for sent in batch]
-
-def untokenize_batch(batch):
-    return [tokenizer.convert_ids_to_tokens(sent) for sent in batch]
-
 def detokenize(sent):
     """ Roughly detokenizes (mainly undoes wordpiece) """
     new_sent = []
@@ -161,231 +409,10 @@ def detokenize(sent):
     return new_sent
 
 
-def list_token(tokenizer):
-    ll = list()
-    with open('vocab.txt','r') as f:
-      for s in f.readlines():
-          t=s.replace("\n","")
-          if t.startswith("##"):
-            if t[2] in ["a","e","i","o","u"]:
-                  ll.append(tokenizer.convert_tokens_to_ids(t))
-    return ll
-
-def list_subtoken(tokenizer):
-    ll = list()
-    with open('vocab.txt','r') as f:
-      for s in f.readlines():
-          t=s.replace("\n","")
-          if t.startswith("##"):
-              ll.append(tokenizer.convert_tokens_to_ids(t))
-    return ll
-
 def detokenize_alberto(tokens):
     """Converts a sequence of tokens (string) to a single string."""
     out_string = ' '.join(tokens).replace('##', '').strip()
     return out_string
-
-def generate_step(out, gen_idx, batch, temperature=None, top_k=0, sample=False, return_list=True, lastVocal = False, isFirst=False):
-    """ Generate a word from from out[gen_idx]
-    
-    args:
-        - out (torch.Tensor): tensor of logits of size batch_size x seq_len x vocab_size
-        - gen_idx (int): location for which to generate for
-        - top_k (int): if >0, only sample from the top k most probable words
-        - sample (Bool): if True, sample from full distribution. Overridden by top_k 
-    """
-    if noWiki:
-      logits = out.logits[:,gen_idx]
-    else:
-      logits = out[:,gen_idx]
-    if temperature is not None:
-        logits = logits / temperature
-    if top_k > 0:
-        kth_vals, kth_idx = logits.topk(top_k, dim=-1)
-        rmToken = batch[0][(gen_idx-4):gen_idx]
-        rmToken.append(tokenizer.convert_tokens_to_ids('[UNK]'))
-        if lastVocal and not isFirst:
-          [rmToken.append(item) for item in list_token_obtain]
-        if isFirst:
-          [rmToken.append(item) for item in list_subtoken_obtain]
-        if kth_idx == []:
-          top_k = len(idx_list)+10
-          kth_vals, kth_idx = logits.topk(top_k, dim=-1)
-          kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],idx_list)
-        kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],rmToken)
-        kth_vals = torch.tensor([kth_vals]).cuda() if cuda else torch.tensor([kth_vals])
-        kth_idx = torch.tensor([kth_idx]).cuda() if cuda else torch.tensor([kth_idx])
-        dist = torch.distributions.categorical.Categorical(logits=kth_vals)
-        idx = kth_idx.gather(dim=1, index=dist.sample().unsqueeze(-1)).squeeze(-1) 
-    elif sample:
-        dist = torch.distributions.categorical.Categorical(logits=logits)
-        idx = dist.sample().squeeze(-1)
-    else:
-        idx = torch.argmax(logits, dim=-1)
-    return idx.tolist() if return_list else idx
-
-
-def get_init_text(seed_text, max_len, batch_size = 1, rand_init=False):
-    """ Get initial sentence by padding seed_text with either masks or random words to max_len """
-    batch = [seed_text + [MASK] * max_len + [SEP] for _ in range(batch_size)]  # crea batch_size sentences of max_len that start with [CLS] and end with [SEP]
-    #if rand_init:
-    #    for ii in range(max_len):
-    #        init_idx[seed_len+ii] = np.random.randint(0, len(tokenizer.vocab))
-    
-    return tokenize_batch(batch)
-            
-def sequential_generation(seed_text, batch_size=10, max_len=15, leed_out_len=15, 
-                          top_k=0, temperature=None, sample=True, cuda=False, stop_chars=[],max_iter=1000):
-    """ Generate one word at a time, in L->R order """
-    seed_len = len(seed_text)
-    block = []
-    for curr_batch_index in range(batch_size):
-      print("Batch {}".format(curr_batch_index))
-      batch = get_init_text(seed_text, max_len) # batch_size sentences of max_len length with all mask, starting with [CLS] and separating by [SEP]
-      
-      for ii in range(max_len):
-          if tokenizer.convert_ids_to_tokens(batch[0][:seed_len+ii])[-1][-1] in ['a','e','i','o','u']:
-            lastVocal = True
-          else:
-            lastVocal = False
-          if ii == 0:
-            isFirst = True
-          else:
-            isFirst = False
-          inp = [sent[:seed_len+ii+leed_out_len]+[sep_id] for sent in batch]
-          inp = torch.tensor(batch).cuda() if cuda else torch.tensor(batch)
-          out = model(inp) # ricava i valori logits
-          idxs = generate_step(out, gen_idx=seed_len+ii, batch = batch, top_k=top_k, temperature=temperature, sample=sample,lastVocal=lastVocal, isFirst=isFirst)
-          batch[0][seed_len+ii] = idxs[0]
-          if noWiki:
-            key = tokenizer.convert_ids_to_tokens(idxs[0])
-          else:
-            key = tokenizer.ids_to_tokens[idxs[0]]
-          if key in stop_chars:
-            batch[0] = batch[0][: seed_len+ii+1]
-            #block.append(batch[0])
-            break   
-      block.append(batch[0])            
-      #for _ in range(max_iter):
-      #    kk = np.random.randint(0, len(block[-1])-seed_len-1) # seleziona un indice casuale tra 0 e max_len e maschera il relativo token in ogni sentences
-      #    block[-1][seed_len+kk] = mask_id
-      #    inp = torch.tensor([block[-1]]).cuda() if cuda else torch.tensor([block[-1]])
-      #    out = model(inp)
-      #    idxs = generate_step(out, gen_idx=seed_len+kk, top_k=top_k, temperature=temperature, sample=False)
-      #    block[-1][seed_len+kk] = idxs[0]
-    
-    return untokenize_batch(block)
-
-
-def generate(n_samples, seed_text="[CLS]", batch_size=10, max_len=25, 
-             generation_mode="parallel-sequential", leed_out_len= 5,
-             sample=True, top_k=100, temperature=1.0, burnin=200, max_iter=500,
-             cuda=False, print_every=1, stop_chars=[]):
-    # main generation function to call
-    sentences = []
-    n_batches = math.ceil(n_samples / batch_size) # approssima il rapporto a un numero intero e ripete il processo di generazione di batch_size sentences of length len_max n_batches times.
-    start_time = time.time()
-    for batch_n in range(n_batches):
-        if generation_mode == "parallel-sequential":
-            batch = parallel_sequential_generation(seed_text, batch_size=batch_size, max_len=max_len, top_k=top_k,
-                                                   temperature=temperature, burnin=burnin, max_iter=max_iter, 
-                                                   cuda=cuda, verbose=False)
-        elif generation_mode == "sequential":
-            batch = sequential_generation(seed_text, batch_size=batch_size, max_len=max_len, top_k=top_k, 
-                                          temperature=temperature, leed_out_len=leed_out_len, sample=sample,
-                                          cuda=cuda, stop_chars=stop_chars)
-        elif generation_mode == "parallel":
-            batch = parallel_generation(seed_text, batch_size=batch_size,
-                                        max_len=max_len, top_k=top_k, temperature=temperature, 
-                                        sample=sample, max_iter=max_iter, 
-                                        cuda=cuda, verbose=True)
-        
-        if (batch_n + 1) % print_every == 0:
-            print("Finished batch %d in %.3fs" % (batch_n + 1, time.time() - start_time))
-            start_time = time.time()
-        
-        sentences += batch
-    return sentences
-
-def generate_phrase(seed, num_phrase = 5):
-    ff = preprocess_twitter(seed)
-    frase = ff.split()
-    frase = [CLS] + frase
-    n_samples = num_phrase
-    batch_size = num_phrase
-    max_len = 40
-    top_k = 50
-    temperature = 1.0
-    generation_mode = "sequential"
-    leed_out_len = 5 # max_len
-    burnin = 200
-    sample = True
-    max_iter = 600
-    bert_sents = generate(n_samples, seed_text=frase, batch_size=batch_size, max_len=max_len,
-                      generation_mode=generation_mode, leed_out_len= leed_out_len,
-                      sample=sample, top_k=top_k, temperature=temperature, burnin=burnin, max_iter=max_iter,
-                      cuda=cuda, stop_chars=["!","?","."])
-    phrase = list()
-    a = AlBERTo_Preprocessing(do_lower_case=True)
-    b = a.preprocess(seed)
-    for sent in bert_sents:
-      print(sent)
-      sent = detokenize(sent)
-      st = post_process_alberto(sent)
-      st = st.replace(b,seed)
-      phrase.append(st)
-
-    return phrase
-
-def generate_hints(seed, num_hints = 5):
-    ff = preprocess_twitter(seed)
-    frase = ff.split()
-    frase = [CLS] + frase
-    n_samples = num_hints
-    batch_size = num_hints
-    max_len = 10
-    top_k = 100
-    temperature = 1.0
-    generation_mode = "sequential"
-    leed_out_len = 5 # max_len
-
-
-    seed_len = len(frase)
-    batch = get_init_text(frase, max_len) # batch_size sentences of max_len length with all mask, starting with [CLS] and separating by [SEP]
-
-    inp = [sent[:seed_len+leed_out_len]+[sep_id] for sent in batch]
-    inp = torch.tensor(batch).cuda() if cuda else torch.tensor(batch)
-    out = model(inp) # ricava i valori logits
-    gen_idx=seed_len
-
-    if noWiki:
-      logits = out.logits[:,gen_idx]
-    else:
-      logits = out[:,gen_idx]
-    if temperature is not None:
-        logits = logits / temperature
-
-    kth_vals, kth_idx = logits.topk(top_k, dim=-1)
-    idx_list = batch[0][:gen_idx]
-    [idx_list.append(item) for item in list_subtoken_obtain]
-    hints =list()
-    for ii in range(num_hints):
-        kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],idx_list)
-        if kth_idx == []:
-          top_k = len(idx_list)+num_hints
-          kth_vals, kth_idx = logits.topk(top_k, dim=-1)
-          kth_idx , kth_vals=diff(kth_idx.tolist()[0],kth_vals.tolist()[0],idx_list)
-        kth_vals = torch.tensor([kth_vals]).cuda() if cuda else torch.tensor([kth_vals])
-        kth_idx = torch.tensor([kth_idx]).cuda() if cuda else torch.tensor([kth_idx])
-        dist = torch.distributions.categorical.Categorical(logits=kth_vals)
-        idx = kth_idx.gather(dim=1, index=dist.sample().unsqueeze(-1)).squeeze(-1) 
-        idx_list.append(idx.tolist()[0])
-        if noWiki:
-            hints.append(tokenizer.convert_ids_to_tokens(idx.tolist()[0]))
-        else:
-            hints.append(tokenizer.ids_to_tokens[idx_list[-1]])
-
-    return hints
 
 def parse_hashtags(phrase: str):
     regex = r"<hashtag>(.*?)(<|$)(\/|$)( *|$)(h|$)(a|$)(s|$)(h|$)(t|$)(a|$)(g|$)(>|$)"
