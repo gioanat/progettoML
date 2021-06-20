@@ -88,38 +88,38 @@ class AlBERTo_Preprocessing(object):
     
 class GenerateHints(object):
     def __init__(self):
-        noWiki = True
-        model_version =  "m-polignano-uniba/bert_uncased_L-12_H-768_A-12_italian_alb3rt0"
-        model = AutoModelForMaskedLM.from_pretrained(model_version)
-        model.eval()
-        cuda = torch.cuda.is_available()
-        if cuda:
-            model = model.cuda(0)
+        self.noWiki = True
+        self.model_version =  "m-polignano-uniba/bert_uncased_L-12_H-768_A-12_italian_alb3rt0"
+        self.model = AutoModelForMaskedLM.from_pretrained(model_version)
+        self.model.eval()
+        self.cuda = torch.cuda.is_available()
+        if self.cuda:
+            self.model = self.model.cuda(0)
         # Load pre-trained model tokenizer (vocabulary)
-        tokenizer = AutoTokenizer.from_pretrained(model_version)
-        CLS = '[CLS]'
-        SEP = '[SEP]'
-        MASK = '[MASK]'
-        mask_id = tokenizer.convert_tokens_to_ids([MASK])[0]
-        sep_id = tokenizer.convert_tokens_to_ids([SEP])[0]
-        cls_id = tokenizer.convert_tokens_to_ids([CLS])[0]
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_version)
+        self.CLS = '[CLS]'
+        self.SEP = '[SEP]'
+        self.MASK = '[MASK]'
+        self.mask_id = self.tokenizer.convert_tokens_to_ids([self.MASK])[0]
+        self.sep_id = self.tokenizer.convert_tokens_to_ids([self.SEP])[0]
+        self.cls_id = self.tokenizer.convert_tokens_to_ids([self.CLS])[0]
 
-        list_token_obtain = list_token(tokenizer)
-        list_subtoken_obtain = list_subtoken(tokenizer)
+        self.list_token_obtain = self.list_token(self.tokenizer)
+        self.list_subtoken_obtain = self.list_subtoken(self.tokenizer)
 
-        src = 'it'  # source language
-        trg = 'en'  # target language
-        modelTrasl = f'Helsinki-NLP/opus-mt-{src}-{trg}'
+        self.src = 'it'  # source language
+        self.trg = 'en'  # target language
+        self.modelTrasl = f'Helsinki-NLP/opus-mt-{self.src}-{self.trg}'
 
-        tokenizerTrasl = AutoTokenizer.from_pretrained(modelTrasl)
-        modelTrasl = AutoModelForSeq2SeqLM.from_pretrained(modelTrasl)
-    def tokenize_batch(batch):
+        self.tokenizerTrasl = AutoTokenizer.from_pretrained(self.modelTrasl)
+        self.modelTrasl = AutoModelForSeq2SeqLM.from_pretrained(self.modelTrasl)
+    def tokenize_batch(self,batch):
         return [self.tokenizer.convert_tokens_to_ids(sent) for sent in batch]
 
-    def untokenize_batch(batch):
+    def untokenize_batch(self,batch):
         return [self.tokenizer.convert_ids_to_tokens(sent) for sent in batch]
     
-    def list_token():
+    def list_token(self):
         ll = list()
         with open('vocab.txt','r') as f:
           for s in f.readlines():
@@ -129,7 +129,7 @@ class GenerateHints(object):
                       ll.append(self.tokenizer.convert_tokens_to_ids(t))
         return ll
 
-    def list_subtoken():
+    def list_subtoken(self):
         ll = list()
         with open('vocab.txt','r') as f:
           for s in f.readlines():
@@ -137,7 +137,7 @@ class GenerateHints(object):
               if t.startswith("##"):
                   ll.append(self.tokenizer.convert_tokens_to_ids(t))
         return ll
-    def generate_step(out, gen_idx, batch, temperature=None, top_k=0, sample=False, return_list=True, lastVocal = False, isFirst=False):
+    def generate_step(self,out, gen_idx, batch, temperature=None, top_k=0, sample=False, return_list=True, lastVocal = False, isFirst=False):
         """ Generate a word from from out[gen_idx]
 
         args:
@@ -186,7 +186,7 @@ class GenerateHints(object):
 
         return tokenize_batch(batch)
             
-    def sequential_generation(seed_text, batch_size=10, max_len=15, leed_out_len=15, 
+    def sequential_generation(self,seed_text, batch_size=10, max_len=15, leed_out_len=15, 
                               top_k=0, temperature=None, sample=True, cuda=False, stop_chars=[],max_iter=1000):
         """ Generate one word at a time, in L->R order """
         seed_len = len(seed_text)
@@ -204,10 +204,10 @@ class GenerateHints(object):
                 isFirst = True
               else:
                 isFirst = False
-              inp = [sent[:seed_len+ii+leed_out_len]+[sep_id] for sent in batch]
-              inp = torch.tensor(batch).cuda() if cuda else torch.tensor(batch)
-              out = model(inp) # ricava i valori logits
-              idxs = generate_step(out, gen_idx=seed_len+ii, batch = batch, top_k=top_k, temperature=temperature, sample=sample,lastVocal=lastVocal, isFirst=isFirst)
+              inp = [sent[:seed_len+ii+leed_out_len]+[self.sep_id] for sent in batch]
+              inp = torch.tensor(batch).cuda() if self.cuda else torch.tensor(batch)
+              out = self.model(inp) # ricava i valori logits
+              idxs = self.generate_step(out, gen_idx=seed_len+ii, batch = batch, top_k=top_k, temperature=temperature, sample=sample,lastVocal=lastVocal, isFirst=isFirst)
               batch[0][seed_len+ii] = idxs[0]
               if self.noWiki:
                 key = self.tokenizer.convert_ids_to_tokens(idxs[0])
@@ -226,7 +226,7 @@ class GenerateHints(object):
           #    idxs = generate_step(out, gen_idx=seed_len+kk, top_k=top_k, temperature=temperature, sample=False)
           #    block[-1][seed_len+kk] = idxs[0]
 
-        return untokenize_batch(block)
+        return self.untokenize_batch(block)
 
 
     def generate(n_samples, seed_text="[CLS]", batch_size=10, max_len=25, 
@@ -273,7 +273,7 @@ class GenerateHints(object):
         burnin = 200
         sample = True
         max_iter = 600
-        bert_sents = generate(n_samples, seed_text=frase, batch_size=batch_size, max_len=max_len,
+        bert_sents = self.generate(n_samples, seed_text=frase, batch_size=batch_size, max_len=max_len,
                           generation_mode=generation_mode, leed_out_len= leed_out_len,
                           sample=sample, top_k=top_k, temperature=temperature, burnin=burnin, max_iter=max_iter,
                           cuda=cuda, stop_chars=["!","?","."])
@@ -305,9 +305,9 @@ class GenerateHints(object):
         seed_len = len(frase)
         batch = get_init_text(frase, max_len) # batch_size sentences of max_len length with all mask, starting with [CLS] and separating by [SEP]
 
-        inp = [sent[:seed_len+leed_out_len]+[sep_id] for sent in batch]
-        inp = torch.tensor(batch).cuda() if cuda else torch.tensor(batch)
-        out = model(inp) # ricava i valori logits
+        inp = [sent[:seed_len+leed_out_len]+[self.sep_id] for sent in batch]
+        inp = torch.tensor(batch).cuda() if self.cuda else torch.tensor(batch)
+        out = self.model(inp) # ricava i valori logits
         gen_idx=seed_len
 
         if self.noWiki:
