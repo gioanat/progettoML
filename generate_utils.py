@@ -162,23 +162,23 @@ def detokenize(sent):
     return new_sent
 
 
-def list_token(tokenizer):
+def list_token(tkz):
     ll = list()
     with open('vocab.txt','r') as f:
       for s in f.readlines():
           t=s.replace("\n","")
           if t.startswith("##"):
             if t[2] in ["a","e","i","o","u"]:
-                  ll.append(tokenizer.convert_tokens_to_ids(t))
+                  ll.append(tkz.convert_tokens_to_ids(t))
     return ll
 
-def list_subtoken():
+def list_subtoken(tkz):
     ll = list()
     with open('vocab.txt','r') as f:
       for s in f.readlines():
           t=s.replace("\n","")
           if t.startswith("##"):
-              ll.append(tokenizer.convert_tokens_to_ids(t))
+              ll.append(tkz.convert_tokens_to_ids(t))
     return ll
 
 def detokenize_alberto(tokens):
