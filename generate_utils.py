@@ -338,7 +338,7 @@ class GenerateHints(object):
                 hints.append(self.tokenizer.ids_to_tokens[self.idx_list[-1]])
 
         return hints
-    def traslated_funct(text):
+    def traslated_funct(self,text):
         text=text.split()
         emoji_it_to_en=["😉","🌸","😭","😊","💕","😘","😍","😂","♥","👍","😁","🙈","😏","🙏",
               "😱","💖","🔝","😜","💘","😄","💞","😃","👏","😔","💋","😁","♡","😔"]
