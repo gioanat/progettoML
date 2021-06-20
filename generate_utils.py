@@ -56,7 +56,34 @@ except ImportError:
     from ekphrasis.classes.tokenizer import SocialTokenizer
     from ekphrasis.dicts.emoticons import emoticons
    
-    
+noWiki = True
+model_version =  "m-polignano-uniba/bert_uncased_L-12_H-768_A-12_italian_alb3rt0"
+model = AutoModelForMaskedLM.from_pretrained(model_version)
+model.eval()
+cuda = torch.cuda.is_available()
+if cuda:
+    model = model.cuda(0)
+# Load pre-trained model tokenizer (vocabulary)
+tokenizer = AutoTokenizer.from_pretrained(model_version)
+CLS = '[CLS]'
+SEP = '[SEP]'
+MASK = '[MASK]'
+mask_id = tokenizer.convert_tokens_to_ids([MASK])[0]
+sep_id = tokenizer.convert_tokens_to_ids([SEP])[0]
+cls_id = tokenizer.convert_tokens_to_ids([CLS])[0]
+
+list_token_obtain = list_token(tokenizer)
+list_subtoken_obtain = list_subtoken(tokenizer)
+
+src = 'it'  # source language
+trg = 'en'  # target language
+modelTrasl = f'Helsinki-NLP/opus-mt-{src}-{trg}'
+
+tokenizerTrasl = AutoTokenizer.from_pretrained(modelTrasl)
+modelTrasl = AutoModelForSeq2SeqLM.from_pretrained(modelTrasl)
+
+
+
 text_processor = TextPreProcessor(
     # terms that will be normalized
     normalize=['url', 'email', 'user', 'percent', 'money', 'phone', 'time', 'date', 'number'],
@@ -162,23 +189,23 @@ def detokenize(sent):
     return new_sent
 
 
-def list_token(tkz):
+def list_token():
     ll = list()
     with open('vocab.txt','r') as f:
       for s in f.readlines():
           t=s.replace("\n","")
           if t.startswith("##"):
             if t[2] in ["a","e","i","o","u"]:
-                  ll.append(tkz.convert_tokens_to_ids(t))
+                  ll.append(tokenizer.convert_tokens_to_ids(t))
     return ll
 
-def list_subtoken(tkz):
+def list_subtoken():
     ll = list()
     with open('vocab.txt','r') as f:
       for s in f.readlines():
           t=s.replace("\n","")
           if t.startswith("##"):
-              ll.append(tkz.convert_tokens_to_ids(t))
+              ll.append(tokenizer.convert_tokens_to_ids(t))
     return ll
 
 def detokenize_alberto(tokens):
