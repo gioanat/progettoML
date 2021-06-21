@@ -338,83 +338,50 @@ class GenerateHints(object):
                 hints.append(self.tokenizer.ids_to_tokens[self.idx_list[-1]])
 
         return hints
-    def traslated_funct(self,text):
-        text=text.split()
+        
+    def translate_func(self, text):
         emoji_it_to_en=["😉","🌸","😭","😊","💕","😘","😍","😂","♥","👍","😁","🙈","😏","🙏",
-              "😱","💖","🔝","😜","💘","😄","💞","😃","👏","😔","💋","😁","♡","😔"]
-
-        #Divido emoji dalle parole
-        flag=0
-        text2=[]
-        w1=""
-        w2=""
-        w3=""
-        for word in text:
-          for emoji in emoji_it_to_en:
-            if emoji in word and emoji!=word:
-              flag=1
-              w1,w3=word.split(emoji)
-              w2=emoji
-              if w1!="":
-                text2.append(w1)
-                w1=""
-              text2.append(w2)
-              w2=""
-              if w3!="":
-                text2.append(w3)
-                w3=""
-          if flag==0:
-            text2.append(word)
-          flag=0
-
-        #Ottengo sottofrasi dalla frase di partenza
-        broken_sent=[]
-        removed=[]
-        sent_piece=""
-        for i in range(len(text2)):
-          if text2[i] not in emoji_it_to_en:
-            sent_piece=sent_piece+text2[i]+" " 
-          else:
-            removed.append(text2[i])
-            sent_piece=sent_piece.strip()
-            broken_sent.append(sent_piece)
-            sent_piece=""
-          if i==len(text2)-1 and (text2[i] not in emoji_it_to_en):
-            sent_piece=sent_piece.strip()
-            broken_sent.append(sent_piece)
-            sent_piece=""
-
-        #Traduco sottofrasi
+              "😱","💖","🔝","😜","💘","😄","💞","😃","👏","😔","💋","😁","♡","😔","<hashtag>","</hashtag>",
+              "<url>","<annoyed>","<sad>","<happy>","<hearth>","<wink>","<number>","<user>","<devil>","<user>","<percent>","<money>","<phone>","<time>","<date>"]
+        
+        #divide le frasi in funzione delle emoji
+        sentence_pieces = list()
+        emojis = []
+        text_components = text.split()
+        last_emoji_index = 0
+        for current_index in range(len(text_components)):
+          word = text_components[current_index]
+          if word in emoji_it_to_en:
+            sentence_pieces.append(" ".join(text_components[last_emoji_index:current_index]))
+            last_emoji_index = current_index+1
+            emojis.append(word)
+        
+        
         translated=[]
-        for el in broken_sent:
-          words1=""
+        for el in sentence_pieces:
+          print(el)
+          if len(el) == 0:
+            translated.append(el)
+            continue
           batch = self.tokenizerTrasl.prepare_seq2seq_batch(src_texts=[el],return_tensors='pt') 
           gen = self.modelTrasl.generate(**batch) 
           words: List[str] = self.tokenizerTrasl.batch_decode(gen, skip_special_tokens=True)
-          for el in words:
-            words1=words1+el
-          translated.append(words1)
+          print(words)
+          sentence = ""
+          for word in words:
+            sentence += word.replace(".","").replace(",","")
+          translated.append(sentence)
+        
+        new_sentence = []
+        for i in range(len(translated)):
+          new_sentence.append(translated[i])
+          new_sentence.append(emojis[i])
 
-        #Reinserisco gli emoji tolti in precedenza
-        new_text_piece=[]
-        for i in range(len(removed)):
-          new_text_piece.append(translated[i])
-          new_text_piece.append(removed[i])
-        if len(translated)>len(removed):
-          new_text_piece.append(translated[-1])
-
-        #Riunisco tutto in un'unica frase
-        new_text=""
-        for el in new_text_piece:
-          new_text=new_text+" "+el
-        new_text=new_text.strip()
-        return new_text
-
+        return " ".join(new_sentence)
         
 def preprocess_twitter(s):
     a = AlBERTo_Preprocessing(do_lower_case=True)
     b = a.preprocess(s)
-    print(b)
     # 'url', 'email', 'user', 'percent', 'money', 'phone', 'time', 'date', 'number'
     frase = b.replace("<url>","< ##url ##>")
     frase = frase.replace("<email>","email")
