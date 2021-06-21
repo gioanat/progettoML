@@ -281,7 +281,6 @@ class GenerateHints(object):
         a = AlBERTo_Preprocessing(do_lower_case=True)
         b = a.preprocess(seed)
         for sent in bert_sents:
-          print(sent)
           sent = detokenize(sent)
           st = post_process_alberto(sent)
           st = st.replace(b,seed)
