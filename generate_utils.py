@@ -78,6 +78,11 @@ class AlBERTo_Preprocessing(object):
     def preprocess(self, text):
         if self.do_lower_case:
             text = text.lower()
+        text=text.replace(" > "," ")
+        text=text.replace(" < "," ")
+        text=text.replace(" / "," ")
+        text=text.replace(" < user "," <user> ")
+        text=text.replace(" < url "," <url> ")
         text = str(" ".join(text_processor.pre_process_doc(text)))
         text = re.sub(r'[^a-zA-ZÀ-ú</>!?♥♡\s\U00010000-\U0010ffff]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
@@ -342,7 +347,6 @@ class GenerateHints(object):
         emoji_it_to_en=["😉","🌸","😭","😊","💕","😘","😍","😂","♥","👍","😁","🙈","😏","🙏",
               "😱","💖","🔝","😜","💘","😄","💞","😃","👏","😔","💋","😁","♡","😔","<hashtag>","</hashtag>",
               "<url>","<annoyed>","<sad>","<happy>","<hearth>","<wink>","<number>","<user>","<devil>","<user>","<percent>","<money>","<phone>","<time>","<date>"]
-        
         #divide le frasi in funzione delle emoji
         sentence_pieces = list()
         emojis = []
@@ -354,7 +358,7 @@ class GenerateHints(object):
             sentence_pieces.append(" ".join(text_components[last_emoji_index:current_index]))
             last_emoji_index = current_index+1
             emojis.append(word)
-        
+        sentence_pieces.append(" ".join(text_components[last_emoji_index:]))
         
         translated=[]
         for el in sentence_pieces:
@@ -374,7 +378,8 @@ class GenerateHints(object):
         new_sentence = []
         for i in range(len(translated)):
           new_sentence.append(translated[i])
-          new_sentence.append(emojis[i])
+          if i < len(emojis):
+            new_sentence.append(emojis[i])
 
         return " ".join(new_sentence)
         
@@ -471,7 +476,11 @@ def parse_hashtags(phrase: str):
             break
 
     temp=temp.replace("</hashtag> ","")
-    temp=temp.replace(" < user","<user>")
+    temp=temp.replace(" < user "," <user> ")
+    temp=temp.replace(" < url "," <url> ")
     temp=temp.replace(" !","!")
     temp=temp.replace(" ?","?")
+    temp=temp.replace(" > "," ")
+    temp=temp.replace(" < "," ")
+    temp=temp.replace(" / "," ")
     return temp.strip()
