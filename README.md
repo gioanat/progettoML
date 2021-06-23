@@ -29,4 +29,6 @@ Per utilizzare la nostra Twitter App, vi preghiamo di procedere nel modo seguent
 6. incollate l'URL precedentemente copiato;
 7. iniziate a generare tweets!
 
-[![Watch the video](https://i.imgur.com/vKb2F1B.png)](https://youtu.be/vt5fpE0bzSY)
+DEMO:
+
+[![Watch the video](https://img.youtube.com/vi/qdeMb6knsXA/hqdefault.jpg)](https://youtu.be/qdeMb6knsXA)
