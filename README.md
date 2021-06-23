@@ -14,7 +14,10 @@ To use our Twitter App, please proceed in the following way:
 6. paste the previously copied URL;
 7. start to generate tweets!
 
+DEMO:
 
+
+[![Watch the video](https://img.youtube.com/vi/rq2MhMQh3Bs/hqdefault.jpg)](https://youtu.be/rq2MhMQh3Bs)
 
 
 ## IT
