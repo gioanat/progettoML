@@ -15,6 +15,8 @@ To use our Twitter App, please proceed in the following way:
 7. start to generate tweets!
 
 
+
+
 ## IT
 
 Per utilizzare la nostra Twitter App, vi preghiamo di procedere nel modo seguente:
@@ -26,3 +28,5 @@ Per utilizzare la nostra Twitter App, vi preghiamo di procedere nel modo seguent
 5. andate al link seguente: [app_twitter.surge.sh](http://app_twitter.surge.sh);
 6. incollate l'URL precedentemente copiato;
 7. iniziate a generare tweets!
+
+[![Watch the video](https://i9.ytimg.com/vi/qdeMb6knsXA/mq2.jpg?sqp=CMSAzIYG&rs=AOn4CLDSv5i4iLYHpBDHYnXrsk5yS9-YGQ)](https://youtu.be/qdeMb6knsXA)
